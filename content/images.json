@@ -1,0 +1,17 @@
+{
+  "1920x1080": [
+    "puzzles/1920x1080/001.jpg",
+    "puzzles/1920x1080/002.jpg",
+    "puzzles/1920x1080/003.jpg",
+    "puzzles/1920x1080/004.jpg",
+    "puzzles/1920x1080/005.jpeg",
+    "puzzles/1920x1080/006.jpg"
+  ],
+  "1440x1920": [
+    "puzzles/1440x1920/001.jpg",
+    "puzzles/1440x1920/002.jpeg",
+    "puzzles/1440x1920/003.jpeg",
+    "puzzles/1440x1920/004.jpeg",
+    "puzzles/1440x1920/005.jpeg"
+  ]
+}

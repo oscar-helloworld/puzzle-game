@@ -1,0 +1,9 @@
+{
+  "bgm": [
+    "audio/track1.mp3",
+    "audio/track2.mp3"
+  ],
+  "sfx": {
+    "snap": "audio/snap.wav"
+  }
+}
