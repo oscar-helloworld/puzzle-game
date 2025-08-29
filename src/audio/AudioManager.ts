@@ -1,5 +1,6 @@
 type AudioManifest = { bgm: string[]; sfx: { snap: string } };
 export class AudioManager {
+  private preloadedAudio = new Map<string, HTMLAudioElement>();
   private ctx: AudioContext | null = null;
   private gainA?: GainNode; private gainB?: GainNode;
   private srcA?: AudioBufferSourceNode; private srcB?: AudioBufferSourceNode;
@@ -12,6 +13,7 @@ export class AudioManager {
   private sfxGain?: GainNode;
   setMusicOn(on:boolean){ this.musicOn = on; if(!on) this.pauseMusic(); else this.resumeMusic(); }
   setSfxOn(on:boolean){ this.sfxOn = on; }
+  setPreloadedAudio(url: string, audio: HTMLAudioElement){ this.preloadedAudio.set(url, audio); }
   pauseMusic(){ if(!this.musicGain) return; this.musicGain.gain.value = 0; }
   resumeMusic(){ if(!this.musicGain) return; this.musicGain.gain.value = 1; }
   async ensureStarted(){ if(!this.ctx){ this.ctx = new (window.AudioContext||(window as any).webkitAudioContext)(); await this.ctx.resume().catch(()=>{});

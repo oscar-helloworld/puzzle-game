@@ -20,3 +20,15 @@ canvas{display:block;width:100%;height:100%;border-radius:20px;background:#11182
 .modal h3{margin-top:0;font-size:22px}
 .modal p{line-height:1.6;color:var(--fg);opacity:.95}
 .footer-buttons{display:flex;gap:10px;justify-content:center}
+/* 加载屏幕样式 */
+.loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000}
+.loading-content{text-align:center;padding:40px;max-width:400px;width:90%}
+.loading-logo h1{font-size:4rem;margin:0 0 0.5rem 0;animation:pulse 2s ease-in-out infinite}
+.loading-logo h2{font-size:1.5rem;margin:0 0 2rem 0;color:var(--fg);font-weight:600}
+.loading-progress{margin:2rem 0}
+.progress-bar{width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;margin-bottom:1rem}
+.progress-fill{height:100%;background:linear-gradient(90deg,#38bdf8,#06b6d4);border-radius:4px;transition:width 0.3s ease}
+.progress-text{display:flex;justify-content:space-between;margin-bottom:0.5rem;font-size:0.9rem;color:var(--muted)}
+.current-resource{font-size:0.8rem;color:var(--muted);opacity:0.8;min-height:1.2rem}
+.loading-tips{margin-top:1.5rem;font-size:1rem;color:var(--fg);opacity:0.9}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
