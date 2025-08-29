@@ -1,7 +1,23 @@
 {
   "bgm": [
-    "audio/track1.mp3",
-    "audio/track2.mp3"
+    "audio/track01.mp3",
+    "audio/track02.mp3",
+    "audio/track03.mp3",
+    "audio/track04.mp3",
+    "audio/track05.mp3",
+    "audio/track06.mp3",
+    "audio/track07.mp3",
+    "audio/track08.mp3",
+    "audio/track09.mp3",
+    "audio/track10.mp3",
+    "audio/track11.mp3",
+    "audio/track12.mp3",
+    "audio/track13.mp3",
+    "audio/track14.mp3",
+    "audio/track15.mp3",
+    "audio/track16.mp3",
+    "audio/track17.mp3",
+    "audio/track18.mp3"
   ],
   "sfx": {
     "snap": "audio/snap.wav"
