@@ -12,6 +12,7 @@ export class PuzzleEngine{
   private deviceScale=Math.max(1, Math.floor(window.devicePixelRatio||1));
   private puzzleRect={x:0,y:0,w:0,h:0}; private poolRect={x:0,y:0,w:0,h:0};
   private _showGrid=true; // 控制是否显示网格
+  private useTouch=false; // 标记是否使用触摸事件，避免双重处理
   
   private get showGrid() { return this._showGrid; }
   private set showGrid(value: boolean) {
@@ -30,16 +31,24 @@ export class PuzzleEngine{
   mount(){ 
     window.addEventListener("resize", this.handleResize); 
     
-    // 同时注册 Pointer Events 和 Touch Events，让浏览器自己决定使用哪个
-    // 现代浏览器会优先使用 Pointer Events，微信浏览器会回退到 Touch Events
-    this.canvas.addEventListener("pointerdown", this.onPointerDown);
-    window.addEventListener("pointermove", this.onPointerMove); 
-    window.addEventListener("pointerup", this.onPointerUp);
+    // 检测设备类型并优先使用最适合的事件
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+    const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
     
-    // Touch Events 作为兼容性回退（微信浏览器等）
-    this.canvas.addEventListener("touchstart", this.onTouchStart as any, { passive: false });
-    (window as any).addEventListener("touchmove", this.onTouchMove, { passive: false }); 
-    (window as any).addEventListener("touchend", this.onTouchEnd, { passive: false });
+    if (isMobile || isWeChat) {
+      // 移动设备或微信浏览器优先使用 Touch Events
+      this.useTouch = true;
+      this.canvas.addEventListener("touchstart", this.onTouchStart as any, { passive: false });
+      (window as any).addEventListener("touchmove", this.onTouchMove, { passive: false }); 
+      (window as any).addEventListener("touchend", this.onTouchEnd, { passive: false });
+      console.log("🤲 使用 Touch Events（移动设备/微信浏览器优化）");
+    } else {
+      // 桌面设备使用 Pointer Events
+      this.canvas.addEventListener("pointerdown", this.onPointerDown);
+      window.addEventListener("pointermove", this.onPointerMove); 
+      window.addEventListener("pointerup", this.onPointerUp);
+      console.log("🖱️ 使用 Pointer Events（桌面设备）");
+    }
     
     this.handleResize(); this.layout(); this.loop(); 
   }
@@ -47,14 +56,16 @@ export class PuzzleEngine{
     cancelAnimationFrame(this.raf); 
     window.removeEventListener("resize", this.handleResize);
     
-    // 移除所有事件监听器
-    this.canvas.removeEventListener("pointerdown", this.onPointerDown); 
-    window.removeEventListener("pointermove", this.onPointerMove); 
-    window.removeEventListener("pointerup", this.onPointerUp);
-    
-    this.canvas.removeEventListener("touchstart", this.onTouchStart as any); 
-    (window as any).removeEventListener("touchmove", this.onTouchMove); 
-    (window as any).removeEventListener("touchend", this.onTouchEnd);
+    // 移除对应的事件监听器
+    if (this.useTouch) {
+      this.canvas.removeEventListener("touchstart", this.onTouchStart as any); 
+      (window as any).removeEventListener("touchmove", this.onTouchMove); 
+      (window as any).removeEventListener("touchend", this.onTouchEnd);
+    } else {
+      this.canvas.removeEventListener("pointerdown", this.onPointerDown); 
+      window.removeEventListener("pointermove", this.onPointerMove); 
+      window.removeEventListener("pointerup", this.onPointerUp);
+    }
   }
   updateGridConfig(rows: number, cols: number){ 
     if(this.options.rows === rows && this.options.cols === cols) return;
@@ -183,6 +194,16 @@ export class PuzzleEngine{
       ctx.strokeRect(t.targetX,t.targetY,t.w,t.h); ctx.restore();
     } }
   private pickTile(px:number,py:number){ for(let i=this.tiles.length-1;i>=0;i--){ const t=this.tiles[i]; if(t.snapped) continue; if(px>=t.x && px<=t.x+t.w && py>=t.y && py<=t.y+t.h) return t; } return null; }
+  
+  // 带容差的拼图块检测（微信浏览器触摸精度优化）
+  private pickTileWithTolerance(px:number,py:number,tolerance:number){ 
+    for(let i=this.tiles.length-1;i>=0;i--){ 
+      const t=this.tiles[i]; 
+      if(t.snapped) continue; 
+      if(px>=(t.x-tolerance) && px<=(t.x+t.w+tolerance) && py>=(t.y-tolerance) && py<=(t.y+t.h+tolerance)) return t; 
+    } 
+    return null; 
+  }
   private onPointerDown(ev:PointerEvent){ const rect=this.canvas.getBoundingClientRect(); const px=(ev.clientX-rect.left); const py=(ev.clientY-rect.top);
     const t=this.pickTile(px,py); if(!t) return; this.canvas.setPointerCapture(ev.pointerId); const idx=this.tiles.indexOf(t); if(idx>=0){ this.tiles.splice(idx,1); this.tiles.push(t); }
     this.dragging={tile:t,offsetX:px-t.x,offsetY:py-t.y}; }
@@ -204,47 +225,106 @@ export class PuzzleEngine{
       console.log(`拼图块 [${tile.row},${tile.col}] 距离太远，未吸附`);
     } }
   
-  // Touch Events 回退方案（微信浏览器兼容性）
+  // Touch Events 专用方案（移动设备/微信浏览器优化）
   private onTouchStart(ev: TouchEvent) {
-    ev.preventDefault(); // 阻止默认的滚动行为
+    // 立即阻止所有默认行为，消除300ms延迟
+    ev.preventDefault();
+    ev.stopPropagation();
+    
     const touch = ev.touches[0];
     if (!touch) return;
     
+    // 简化的坐标计算 - 直接使用clientX/Y相对于canvas的坐标
     const rect = this.canvas.getBoundingClientRect();
     const px = touch.clientX - rect.left;
     const py = touch.clientY - rect.top;
     
-    const t = this.pickTile(px, py);
-    if (!t) return;
+    console.log(`👆 Touch开始: 触摸坐标(${Math.round(px)}, ${Math.round(py)})`);
+    console.log(`📏 Canvas尺寸: ${rect.width}x${rect.height}, 位置: ${rect.left}, ${rect.top}`);
     
+    // 调试：显示所有未吸附的拼图块位置
+    console.log(`🔍 当前未吸附拼图块:`, this.tiles.filter(t => !t.snapped).map(t => 
+      `[${t.row},${t.col}] 位置(${Math.round(t.x)}, ${Math.round(t.y)}) 尺寸(${Math.round(t.w)}x${Math.round(t.h)})`
+    ));
+    
+    // 先尝试精确匹配
+    let t = this.pickTile(px, py);
+    if (!t) {
+      // 逐步扩大检测范围，每次增加5px
+      console.log(`🔍 精确匹配失败，逐步扩大检测范围`);
+      for (let tolerance = 5; tolerance <= 30; tolerance += 5) {
+        t = this.pickTileWithTolerance(px, py, tolerance);
+        if (t) {
+          console.log(`✅ 容差${tolerance}px时找到拼图块 [${t.row},${t.col}]`);
+          break;
+        }
+      }
+      
+      if (!t) {
+        console.log(`❌ 最大容差30px后仍未找到拼图块`);
+        // 显示最近的拼图块信息
+        const distances = this.tiles.filter(tile => !tile.snapped).map(tile => {
+          const centerX = tile.x + tile.w/2;
+          const centerY = tile.y + tile.h/2;
+          const dist = Math.hypot(px - centerX, py - centerY);
+          return { tile, dist, centerX, centerY };
+        }).sort((a, b) => a.dist - b.dist);
+        
+        if (distances.length > 0) {
+          const nearest = distances[0];
+          console.log(`🎯 最近的拼图块: [${nearest.tile.row},${nearest.tile.col}] 中心(${Math.round(nearest.centerX)}, ${Math.round(nearest.centerY)}) 距离${Math.round(nearest.dist)}px`);
+        }
+        return;
+      }
+    } else {
+      console.log(`✅ 精确匹配成功！找到拼图块 [${t.row},${t.col}]`);
+    }
+    
+    console.log(`🎯 激活拼图块 [${t.row},${t.col}] 位置(${Math.round(t.x)}, ${Math.round(t.y)}) 尺寸(${Math.round(t.w)}x${Math.round(t.h)})`);
+    
+    // 立即将选中的拼图块移到最顶层并开始拖拽
     const idx = this.tiles.indexOf(t);
     if (idx >= 0) {
       this.tiles.splice(idx, 1);
       this.tiles.push(t);
     }
     
+    // 立即设置拖拽状态，无需等待
     this.dragging = { tile: t, offsetX: px - t.x, offsetY: py - t.y };
+    
+    // 立即触发一次轻微的位置更新，让用户感觉到响应
+    t.x = Math.round(px - this.dragging.offsetX);
+    t.y = Math.round(py - this.dragging.offsetY);
   }
   
   private onTouchMove(ev: TouchEvent) {
     if (!this.dragging) return;
+    
+    // 立即阻止默认行为，确保流畅拖拽
     ev.preventDefault();
+    ev.stopPropagation();
     
     const touch = ev.touches[0];
     if (!touch) return;
     
+    // 简化的坐标计算，直接使用相对位置
     const rect = this.canvas.getBoundingClientRect();
     const px = touch.clientX - rect.left;
     const py = touch.clientY - rect.top;
     
     const { tile, offsetX, offsetY } = this.dragging;
+    
+    // 立即更新位置，无缓冲
     tile.x = Math.round(px - offsetX);
     tile.y = Math.round(py - offsetY);
   }
   
   private onTouchEnd(ev: TouchEvent) {
     if (!this.dragging) return;
+    
+    // 立即阻止默认行为
     ev.preventDefault();
+    ev.stopPropagation();
     
     const { tile } = this.dragging;
     this.dragging = null;
@@ -253,13 +333,13 @@ export class PuzzleEngine{
     const dy = tile.y - tile.targetY;
     const dist = Math.hypot(dx, dy);
     
-    console.log(`拼图块 [${tile.row},${tile.col}] 距离目标位置: ${Math.round(dist)}px (阈值: ${this.options.snapThreshold}px)`);
+    console.log(`🔚 Touch结束: 拼图块 [${tile.row},${tile.col}] 距离目标位置: ${Math.round(dist)}px`);
     
     if (dist < this.options.snapThreshold) {
       tile.x = tile.targetX;
       tile.y = tile.targetY;
       tile.snapped = true;
-      console.log(`拼图块 [${tile.row},${tile.col}] 吸附成功！`);
+      console.log(`✨ 拼图块 [${tile.row},${tile.col}] 吸附成功！`);
       this.options.onSnap();
       
       if (this.tiles.every(t => t.snapped)) {
@@ -268,7 +348,7 @@ export class PuzzleEngine{
         this.options.onComplete();
       }
     } else {
-      console.log(`拼图块 [${tile.row},${tile.col}] 距离太远，未吸附`);
+      console.log(`↩️ 拼图块 [${tile.row},${tile.col}] 距离太远，未吸附`);
     }
   }
 }
