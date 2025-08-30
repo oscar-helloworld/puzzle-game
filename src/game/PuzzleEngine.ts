@@ -11,6 +11,15 @@ export class PuzzleEngine{
   private dragging:{tile:Tile;offsetX:number;offsetY:number}|null=null; private raf=0;
   private deviceScale=Math.max(1, Math.floor(window.devicePixelRatio||1));
   private puzzleRect={x:0,y:0,w:0,h:0}; private poolRect={x:0,y:0,w:0,h:0};
+  private _showGrid=true; // 控制是否显示网格
+  
+  private get showGrid() { return this._showGrid; }
+  private set showGrid(value: boolean) {
+    if (this._showGrid !== value) {
+      console.log(`🔄 showGrid 状态变化: ${this._showGrid} -> ${value}`);
+      this._showGrid = value;
+    }
+  }
   constructor(canvas:HTMLCanvasElement,img:HTMLImageElement,opts?:Options){
     this.canvas=canvas; const ctx=canvas.getContext("2d"); if(!ctx) throw new Error("Canvas 2D not supported"); this.ctx=ctx; this.img=img;
     this.options={ rows:opts?.rows??5, cols:opts?.cols??6, snapThreshold:opts?.snapThreshold??18, onComplete:opts?.onComplete??(()=>{}), onSnap:opts?.onSnap??(()=>{}), onOrientationChange:opts?.onOrientationChange??(()=>{}) };
@@ -24,6 +33,7 @@ export class PuzzleEngine{
     if(this.options.rows === rows && this.options.cols === cols) return;
     this.options.rows = rows; this.options.cols = cols; 
     this.tiles = []; this.dragging = null; 
+    this.showGrid = true; // 切换屏幕方向时重新显示网格
     this.layout(); // 重新布局会考虑新的屏幕方向
     console.log(`拼图网格已更新为 ${rows}行 ${cols}列`);
     this.options.onOrientationChange(rows, cols);
@@ -89,10 +99,13 @@ export class PuzzleEngine{
     
     if(this.tiles.length===0) this.buildTiles(); 
   }
-  private buildTiles(){ const {rows, cols}=this.options; const cellW=this.puzzleRect.w/cols; const cellH=this.puzzleRect.h/rows; const rand=(a:number,b:number)=>a+Math.random()*(b-a);
+  private buildTiles(){ 
+    this.showGrid = true; // 开始新游戏时显示网格
+    const {rows, cols}=this.options; const cellW=this.puzzleRect.w/cols; const cellH=this.puzzleRect.h/rows; const rand=(a:number,b:number)=>a+Math.random()*(b-a);
     this.tiles=[]; for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){ const targetX=Math.floor(this.puzzleRect.x+c*cellW); const targetY=Math.floor(this.puzzleRect.y+r*cellH);
       const w=Math.ceil(cellW); const h=Math.ceil(cellH); const x=Math.floor(rand(this.poolRect.x, this.poolRect.x+this.poolRect.w-w)); const y=Math.floor(rand(this.poolRect.y, this.poolRect.y+this.poolRect.h-h));
-      this.tiles.push({row:r,col:c,x,y,w,h,targetX,targetY,snapped:false}); } } this.tiles.sort(()=>Math.random()-0.5); }
+      this.tiles.push({row:r,col:c,x,y,w,h,targetX,targetY,snapped:false}); } } this.tiles.sort(()=>Math.random()-0.5); 
+  }
   private loop=()=>{ this.raf=requestAnimationFrame(this.loop); this.render(); };
   private render(){ const {ctx}=this; const W=this.canvas.width/this.deviceScale; const H=this.canvas.height/this.deviceScale; ctx.clearRect(0,0,W,H);
     
@@ -102,14 +115,18 @@ export class PuzzleEngine{
     ctx.fillStyle="#1e293b"; // 更明显的背景色
     ctx.fillRect(this.puzzleRect.x,this.puzzleRect.y,this.puzzleRect.w,this.puzzleRect.h); 
     
-    // 添加明显的边框
-    ctx.strokeStyle="#38bdf8"; // 蓝色边框
-    ctx.lineWidth=2;
-    ctx.strokeRect(this.puzzleRect.x,this.puzzleRect.y,this.puzzleRect.w,this.puzzleRect.h);
+    // 只在显示网格时添加明显的边框
+    if(this.showGrid) {
+      ctx.strokeStyle="#38bdf8"; // 蓝色边框
+      ctx.lineWidth=2;
+      ctx.strokeRect(this.puzzleRect.x,this.puzzleRect.y,this.puzzleRect.w,this.puzzleRect.h);
+    }
     ctx.restore();
     
-    // 绘制网格线显示每个拼图块的目标位置
-    this.drawGrid();
+    // 绘制网格线显示每个拼图块的目标位置（只在游戏进行中显示）
+    if(this.showGrid) {
+      this.drawGrid();
+    }
     
     for(let i=0;i<this.tiles.length;i++){ this.drawTile(this.tiles[i]); } }
   private drawGrid(){ const {ctx}=this; const {rows, cols}=this.options;
@@ -123,7 +140,12 @@ export class PuzzleEngine{
   private drawTile(t:Tile){ const {ctx}=this; const sx=Math.floor((t.col*this.img.naturalWidth)/this.options.cols); const sy=Math.floor((t.row*this.img.naturalHeight)/this.options.rows);
     const sw=Math.ceil(this.img.naturalWidth/this.options.cols); const sh=Math.ceil(this.img.naturalHeight/this.options.rows);
     ctx.save(); ctx.beginPath(); (ctx as any).roundRect?.(t.x,t.y,t.w,t.h,8); ctx.clip(); ctx.drawImage(this.img, sx, sy, sw, sh, t.x, t.y, t.w, t.h); ctx.restore();
-    ctx.save(); ctx.globalAlpha=.2; ctx.strokeStyle="#000"; ctx.lineWidth=1; ctx.strokeRect(t.x+.5, t.y+.5, t.w-1, t.h-1); ctx.restore();
+    
+    // 只在显示网格时绘制拼图块边框
+    if(this.showGrid) {
+      ctx.save(); ctx.globalAlpha=.2; ctx.strokeStyle="#000"; ctx.lineWidth=1; ctx.strokeRect(t.x+.5, t.y+.5, t.w-1, t.h-1); ctx.restore();
+    }
+    
     if(t.snapped){ ctx.save(); ctx.globalAlpha=.06; ctx.fillStyle="#fff"; ctx.fillRect(t.x,t.y,t.w,t.h); ctx.restore(); }
     
     // 如果正在拖拽这个块，显示目标位置的轮廓（但不显示距离信息）
@@ -146,7 +168,11 @@ export class PuzzleEngine{
       tile.x=tile.targetX; tile.y=tile.targetY; tile.snapped=true; 
       console.log(`拼图块 [${tile.row},${tile.col}] 吸附成功！`);
       this.options.onSnap();
-      if(this.tiles.every(t=>t.snapped)) this.options.onComplete(); 
+      if(this.tiles.every(t=>t.snapped)) { 
+        console.log("🎉 拼图完成！隐藏网格线");
+        this.showGrid = false; // 完成拼图后隐藏网格
+        this.options.onComplete(); 
+      } 
     } else {
       console.log(`拼图块 [${tile.row},${tile.col}] 距离太远，未吸附`);
     } }

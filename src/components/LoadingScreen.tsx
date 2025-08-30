@@ -14,7 +14,7 @@ export default function LoadingScreen({ progress, isVisible }: LoadingScreenProp
       <div className="loading-content">
         <div className="loading-logo">
           <h1>🧩</h1>
-          <h2>治愈系拼图游戏</h2>
+          <h2>治愈系拼图</h2>
         </div>
         
         <div className="loading-progress">
@@ -30,10 +30,6 @@ export default function LoadingScreen({ progress, isVisible }: LoadingScreenProp
             <span className="progress-detail">
               {progress.loaded} / {progress.total}
             </span>
-          </div>
-          
-          <div className="current-resource">
-            {progress.currentResource}
           </div>
         </div>
         
