@@ -5,8 +5,9 @@ import { getRandomPhrase } from "@/utils/phrases";
 import { AudioManager } from "@/audio/AudioManager";
 import { PuzzleEngine } from "@/game/PuzzleEngine";
 import { getCurrentPuzzleConfig, onOrientationChange, type ScreenOrientation } from "@/utils/screenUtils";
+import type { ResourcePreloader } from "@/utils/ResourcePreloader";
 type ImagesManifest = {[key: string]: string[]};
-export default function Game({ onBack, audio }:{onBack:()=>void; audio: AudioManager}){
+export default function Game({ onBack, audio, preloader }:{onBack:()=>void; audio: AudioManager; preloader: ResourcePreloader}){
   const { musicOn, sfxOn, setMusicOn, setSfxOn } = useSettings();
   const [images, setImages] = React.useState<ImagesManifest>({});
   const [currentImg, setCurrentImg] = React.useState<string | null>(null);
@@ -77,12 +78,11 @@ export default function Game({ onBack, audio }:{onBack:()=>void; audio: AudioMan
     const canvas=canvasRef.current; 
     if(!canvas) return; 
     
-    console.log(`开始加载图片: ${currentImg}`);
-    const img=new Image(); 
-    img.crossOrigin="anonymous";
+    console.log(`🚀 快速启动拼图: ${currentImg}`);
     
-    img.onload=()=>{ 
-      console.log(`图片加载完成，创建拼图引擎: ${currentImg} (配置: ${currentConfig.rows}x${currentConfig.cols})`);
+    // 创建拼图引擎的函数
+    const createPuzzleEngine = (img: HTMLImageElement) => {
+      console.log(`✅ 创建拼图引擎: ${currentImg} (配置: ${currentConfig.rows}x${currentConfig.cols})`);
       engineRef.current?.unmount(); 
       const engine=new PuzzleEngine(canvas, img, {
         rows:currentConfig.rows, cols:currentConfig.cols,
@@ -101,21 +101,34 @@ export default function Game({ onBack, audio }:{onBack:()=>void; audio: AudioMan
       engine.mount(); 
       engineRef.current=engine; 
       startTimeRef.current=performance.now(); 
-      setIsChangingImage(false); // 重置切换状态
-      
-      // 音乐已在首页启动，这里不需要重复播放
+      setIsChangingImage(false);
       musicInitializedRef.current = true;
     };
+
+    // 首先尝试使用预加载的图片缓存
+    const imgPath = currentImg.startsWith('/') ? currentImg : '/' + currentImg;
+    const preloadedImg = preloader.getPreloadedImage(imgPath);
     
-    img.onerror=()=>{ 
+    if (preloadedImg && preloadedImg.complete) {
+      console.log(`⚡ 使用预加载缓存，立即启动: ${currentImg}`);
+      // 使用 setTimeout 确保 React 状态更新完成
+      setTimeout(() => createPuzzleEngine(preloadedImg), 0);
+      return;
+    }
+    
+    // 如果缓存中没有或未完成加载，则重新加载（兜底方案）
+    console.log(`📥 图片不在缓存中，重新加载: ${currentImg}`);
+    const img = new Image(); 
+    img.crossOrigin = "anonymous";
+    
+    img.onload = () => createPuzzleEngine(img);
+    img.onerror = () => { 
       console.error(`图片加载失败: ${currentImg}`); 
-      setIsChangingImage(false); // 失败时也要重置状态
+      setIsChangingImage(false);
     };
     
-    const imgPath = currentImg.startsWith('/') ? currentImg : '/' + currentImg;
-    console.log(`设置图片路径: ${imgPath}`);
     img.src = imgPath; 
-  },[currentImg, audio, currentConfig.rows, currentConfig.cols]);
+  },[currentImg, audio, currentConfig.rows, currentConfig.cols, preloader]);
   
   React.useEffect(()=>{ 
     const currentImageList = images[currentConfig.imageFolder];

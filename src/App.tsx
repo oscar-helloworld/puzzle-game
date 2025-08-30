@@ -80,7 +80,7 @@ export default function App() {
     <div className="container">
       {screen === "home" ? 
         <Home onStart={() => setScreen("game")} audio={audio} /> : 
-        <Game onBack={() => setScreen("home")} audio={audio} />
+        <Game onBack={() => setScreen("home")} audio={audio} preloader={preloader} />
       }
     </div>
   );
