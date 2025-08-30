@@ -1,23 +1,19 @@
 {
   "bgm": [
-    "audio/track01.mp3",
-    "audio/track02.mp3",
-    "audio/track03.mp3",
-    "audio/track04.mp3",
-    "audio/track05.mp3",
-    "audio/track06.mp3",
-    "audio/track07.mp3",
-    "audio/track08.mp3",
-    "audio/track09.mp3",
-    "audio/track10.mp3",
-    "audio/track11.mp3",
-    "audio/track12.mp3",
-    "audio/track13.mp3",
-    "audio/track14.mp3",
-    "audio/track15.mp3",
-    "audio/track16.mp3",
-    "audio/track17.mp3",
-    "audio/track18.mp3"
+    "audio/01.mp3",
+    "audio/02.mp3",
+    "audio/03.mp3",
+    "audio/06.mp3",
+    "audio/07.mp3",
+    "audio/08.mp3",
+    "audio/09.mp3",
+    "audio/11.mp3",
+    "audio/12.mp3",
+    "audio/13.mp3",
+    "audio/14.mp3",
+    "audio/16.mp3",
+    "audio/17.mp3",
+    "audio/18.mp3"
   ],
   "sfx": {
     "snap": "audio/snap.wav"
