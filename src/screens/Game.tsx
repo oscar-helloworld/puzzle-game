@@ -103,11 +103,8 @@ export default function Game({ onBack, audio }:{onBack:()=>void; audio: AudioMan
       startTimeRef.current=performance.now(); 
       setIsChangingImage(false); // 重置切换状态
       
-      // 只在首次初始化时播放音乐
-      if(musicOn && !musicInitializedRef.current) {
-        audio.playRandom().catch(()=>{});
-        musicInitializedRef.current = true;
-      }
+      // 音乐已在首页启动，这里不需要重复播放
+      musicInitializedRef.current = true;
     };
     
     img.onerror=()=>{ 
