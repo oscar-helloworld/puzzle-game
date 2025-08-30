@@ -124,7 +124,18 @@ export default function Game({ onBack, audio }:{onBack:()=>void; audio: AudioMan
       loadRandomImage(); 
     } 
   },[images, currentImg, loadRandomImage, currentConfig.imageFolder]);
-  const toggleMusic=()=> setMusicOn(!musicOn);
+  const toggleMusic=async()=> { 
+    const newMusicOn = !musicOn;
+    setMusicOn(newMusicOn); 
+    audio.setMusicOn(newMusicOn); 
+    if(newMusicOn) {
+      // 当开启音乐时，如果没有音乐在播放，就播放随机音乐
+      await audio.playRandom().catch(()=>{});
+    } else {
+      // 当关闭音乐时，停止所有音乐
+      audio.stopAll();
+    }
+  };
   const toggleSfx=()=> setSfxOn(!sfxOn);
   const nextImage=async()=>{ setShowModal(false); await loadRandomImage(); };
   const nextTrack=async()=>{ await audio.playRandom().catch(()=>{}); };

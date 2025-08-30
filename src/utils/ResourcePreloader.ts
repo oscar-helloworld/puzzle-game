@@ -69,6 +69,14 @@ export class ResourcePreloader {
   }
 
   /**
+   * 检测是否为iOS Safari
+   */
+  private isIOSSafari(): boolean {
+    const userAgent = navigator.userAgent;
+    return /iPad|iPhone|iPod/.test(userAgent) && /Safari/.test(userAgent) && !/Chrome|CriOS|FxiOS/.test(userAgent);
+  }
+
+  /**
    * 预加载音频列表
    */
   async preloadAudio(
@@ -77,6 +85,29 @@ export class ResourcePreloader {
   ): Promise<void> {
     const total = audioUrls.length;
     let loaded = 0;
+
+    // iOS Safari 音频预加载限制处理
+    if (this.isIOSSafari()) {
+      console.log('🍎 检测到iOS Safari，跳过音频预加载（需要用户交互）');
+      // 在iOS Safari中，我们只能创建音频元素但不能真正预加载
+      // 直接标记为已完成，避免卡在加载界面
+      audioUrls.forEach(url => {
+        const audio = new Audio();
+        audio.crossOrigin = "anonymous";
+        audio.preload = "none"; // iOS Safari中设置为none
+        audio.src = url.startsWith('/') ? url : '/' + url;
+        this.audioCache.set(url, audio);
+        this.loadedAudio.add(url);
+        loaded++;
+        onProgress?.({ 
+          loaded, 
+          total, 
+          percentage: (loaded / total) * 100, 
+          currentResource: url 
+        });
+      });
+      return;
+    }
 
     const loadPromises = audioUrls.map(async (url) => {
       if (this.loadedAudio.has(url)) {
@@ -90,7 +121,21 @@ export class ResourcePreloader {
         audio.crossOrigin = "anonymous";
         audio.preload = "auto";
         
+        // 设置超时，避免在某些浏览器中无限等待
+        const timeout = setTimeout(() => {
+          console.warn(`音频预加载超时: ${url}`);
+          loaded++;
+          onProgress?.({ 
+            loaded, 
+            total, 
+            percentage: (loaded / total) * 100, 
+            currentResource: url 
+          });
+          resolve();
+        }, 10000); // 10秒超时
+        
         audio.oncanplaythrough = () => {
+          clearTimeout(timeout);
           this.audioCache.set(url, audio);
           this.loadedAudio.add(url);
           loaded++;
@@ -104,6 +149,7 @@ export class ResourcePreloader {
         };
         
         audio.onerror = () => {
+          clearTimeout(timeout);
           console.warn(`音频预加载失败: ${url}`);
           loaded++;
           onProgress?.({ 
