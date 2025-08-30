@@ -23,12 +23,39 @@ export class PuzzleEngine{
   constructor(canvas:HTMLCanvasElement,img:HTMLImageElement,opts?:Options){
     this.canvas=canvas; const ctx=canvas.getContext("2d"); if(!ctx) throw new Error("Canvas 2D not supported"); this.ctx=ctx; this.img=img;
     this.options={ rows:opts?.rows??5, cols:opts?.cols??6, snapThreshold:opts?.snapThreshold??18, onComplete:opts?.onComplete??(()=>{}), onSnap:opts?.onSnap??(()=>{}), onOrientationChange:opts?.onOrientationChange??(()=>{}) };
-    this.handleResize=this.handleResize.bind(this); this.onPointerDown=this.onPointerDown.bind(this); this.onPointerMove=this.onPointerMove.bind(this); this.onPointerUp=this.onPointerUp.bind(this);
+    this.handleResize=this.handleResize.bind(this); 
+    this.onPointerDown=this.onPointerDown.bind(this); this.onPointerMove=this.onPointerMove.bind(this); this.onPointerUp=this.onPointerUp.bind(this);
+    this.onTouchStart=this.onTouchStart.bind(this); this.onTouchMove=this.onTouchMove.bind(this); this.onTouchEnd=this.onTouchEnd.bind(this);
   }
-  mount(){ window.addEventListener("resize", this.handleResize); this.canvas.addEventListener("pointerdown", this.onPointerDown);
-    window.addEventListener("pointermove", this.onPointerMove); window.addEventListener("pointerup", this.onPointerUp); this.handleResize(); this.layout(); this.loop(); }
-  unmount(){ cancelAnimationFrame(this.raf); window.removeEventListener("resize", this.handleResize);
-    this.canvas.removeEventListener("pointerdown", this.onPointerDown); window.removeEventListener("pointermove", this.onPointerMove); window.removeEventListener("pointerup", this.onPointerUp); }
+  mount(){ 
+    window.addEventListener("resize", this.handleResize); 
+    
+    // 同时注册 Pointer Events 和 Touch Events，让浏览器自己决定使用哪个
+    // 现代浏览器会优先使用 Pointer Events，微信浏览器会回退到 Touch Events
+    this.canvas.addEventListener("pointerdown", this.onPointerDown);
+    window.addEventListener("pointermove", this.onPointerMove); 
+    window.addEventListener("pointerup", this.onPointerUp);
+    
+    // Touch Events 作为兼容性回退（微信浏览器等）
+    this.canvas.addEventListener("touchstart", this.onTouchStart as any, { passive: false });
+    (window as any).addEventListener("touchmove", this.onTouchMove, { passive: false }); 
+    (window as any).addEventListener("touchend", this.onTouchEnd, { passive: false });
+    
+    this.handleResize(); this.layout(); this.loop(); 
+  }
+  unmount(){ 
+    cancelAnimationFrame(this.raf); 
+    window.removeEventListener("resize", this.handleResize);
+    
+    // 移除所有事件监听器
+    this.canvas.removeEventListener("pointerdown", this.onPointerDown); 
+    window.removeEventListener("pointermove", this.onPointerMove); 
+    window.removeEventListener("pointerup", this.onPointerUp);
+    
+    this.canvas.removeEventListener("touchstart", this.onTouchStart as any); 
+    (window as any).removeEventListener("touchmove", this.onTouchMove); 
+    (window as any).removeEventListener("touchend", this.onTouchEnd);
+  }
   updateGridConfig(rows: number, cols: number){ 
     if(this.options.rows === rows && this.options.cols === cols) return;
     this.options.rows = rows; this.options.cols = cols; 
@@ -176,4 +203,72 @@ export class PuzzleEngine{
     } else {
       console.log(`拼图块 [${tile.row},${tile.col}] 距离太远，未吸附`);
     } }
+  
+  // Touch Events 回退方案（微信浏览器兼容性）
+  private onTouchStart(ev: TouchEvent) {
+    ev.preventDefault(); // 阻止默认的滚动行为
+    const touch = ev.touches[0];
+    if (!touch) return;
+    
+    const rect = this.canvas.getBoundingClientRect();
+    const px = touch.clientX - rect.left;
+    const py = touch.clientY - rect.top;
+    
+    const t = this.pickTile(px, py);
+    if (!t) return;
+    
+    const idx = this.tiles.indexOf(t);
+    if (idx >= 0) {
+      this.tiles.splice(idx, 1);
+      this.tiles.push(t);
+    }
+    
+    this.dragging = { tile: t, offsetX: px - t.x, offsetY: py - t.y };
+  }
+  
+  private onTouchMove(ev: TouchEvent) {
+    if (!this.dragging) return;
+    ev.preventDefault();
+    
+    const touch = ev.touches[0];
+    if (!touch) return;
+    
+    const rect = this.canvas.getBoundingClientRect();
+    const px = touch.clientX - rect.left;
+    const py = touch.clientY - rect.top;
+    
+    const { tile, offsetX, offsetY } = this.dragging;
+    tile.x = Math.round(px - offsetX);
+    tile.y = Math.round(py - offsetY);
+  }
+  
+  private onTouchEnd(ev: TouchEvent) {
+    if (!this.dragging) return;
+    ev.preventDefault();
+    
+    const { tile } = this.dragging;
+    this.dragging = null;
+    
+    const dx = tile.x - tile.targetX;
+    const dy = tile.y - tile.targetY;
+    const dist = Math.hypot(dx, dy);
+    
+    console.log(`拼图块 [${tile.row},${tile.col}] 距离目标位置: ${Math.round(dist)}px (阈值: ${this.options.snapThreshold}px)`);
+    
+    if (dist < this.options.snapThreshold) {
+      tile.x = tile.targetX;
+      tile.y = tile.targetY;
+      tile.snapped = true;
+      console.log(`拼图块 [${tile.row},${tile.col}] 吸附成功！`);
+      this.options.onSnap();
+      
+      if (this.tiles.every(t => t.snapped)) {
+        console.log("🎉 拼图完成！隐藏网格线");
+        this.showGrid = false;
+        this.options.onComplete();
+      }
+    } else {
+      console.log(`拼图块 [${tile.row},${tile.col}] 距离太远，未吸附`);
+    }
+  }
 }
